@@ -26,9 +26,23 @@ bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
 
 def parse_homework_status(homework):
-    homework_name = homework['homework_name']
-    if homework['status'] == 'rejected':
+    homework_name = homework.get('homework_name')
+    if not homework_name:
+        msg = 'Homework name not found in request!'
+        logger.error(msg)
+        return msg
+
+    status = homework.get('status', 'unknown')
+    if status not in ['rejected', 'reviewing', 'approved']:
+        msg = 'Unknown homework status in request!'
+        logger.error(msg)
+        return msg
+
+    if status == 'rejected':
         verdict = 'К сожалению, в работе нашлись ошибки.'
+    elif status == 'reviewing':  # Из API PRACTICUM
+        verdict = f'Работа "{homework_name}" принята к ревью'
+        return verdict
     else:
         verdict = 'Ревьюеру всё понравилось, работа зачтена!'
     return f'У вас проверили работу "{homework_name}"!\n\n{verdict}'
@@ -37,13 +51,23 @@ def parse_homework_status(homework):
 def get_homeworks(current_timestamp):
     headers = {'Authorization': f'OAuth {PRAKTIKUM_TOKEN}'}
     payload = {'from_date': current_timestamp}
-    homework_statuses = requests.get(PRAKTIKUM_URL,
-                                     headers=headers,
-                                     params=payload)
-    return homework_statuses.json()
+    try:
+        homework_statuses = requests.get(PRAKTIKUM_URL,
+                                         headers=headers,
+                                         params=payload)
+        return homework_statuses.json()
+    except requests.exceptions.Timeout:
+        error = 'Timeout Error'
+        logger.error(error)
+    except requests.exceptions.RequestException as e:
+        error = f'Бот упал с критической ошибкой: {e}'
+        logger.critical(error)
+        send_message(error)
+    return {}
 
 
 def send_message(message):
+    logger.info('Bot sent message')
     return bot.send_message(CHAT_ID, message)
 
 
@@ -57,7 +81,6 @@ def main():
                 message = parse_homework_status(homework[0])
                 send_message(message)
                 current_timestamp = int(time.time())
-                logger.info('Bot sent message')
             time.sleep(300)  # Опрашивать раз в пять минут
 
         except Exception as e:
