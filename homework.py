@@ -73,7 +73,7 @@ def send_message(message):
 
 def main():
     logger.debug('Start monitoring homework')
-    current_timestamp = 0  # int(time.time()) Начальное значение timestamp
+    current_timestamp = int(time.time())  # Начальное значение timestamp
     while True:
         try:
             homework = get_homeworks(current_timestamp).get('homeworks')
